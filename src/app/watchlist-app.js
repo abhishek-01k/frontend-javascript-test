@@ -1,66 +1,177 @@
-const SESSION_KEY = "watchlist.session.privateKey";
+const OPERATOR_KEY = "watchlist.operatorId";
 const store = new WatchlistStore("ops");
 
-function renderWallets() {
-  const filter = document.getElementById("status-filter").value;
-  const list = document.getElementById("wallet-list");
-  list.innerHTML = "";
-  store.getWallets().forEach((wallet) => {
-    const item = document.createElement("li");
-    item.innerHTML =
-      "<strong>" +
-      wallet.label +
-      "</strong> " +
-      wallet.id +
-      " allowance=" +
-      wallet.allowance +
-      ' <button data-wallet="' +
-      wallet.id +
-      '">Withdraw 10</button>';
-    list.appendChild(item);
-  });
-  void filter;
+const elements = {
+  message: document.getElementById("app-message"),
+  operatorId: document.getElementById("operator-id"),
+  saveSession: document.getElementById("save-session"),
+  addWalletForm: document.getElementById("add-wallet-form"),
+  walletAddress: document.getElementById("wallet-address"),
+  walletLabel: document.getElementById("wallet-label"),
+  walletAllowance: document.getElementById("wallet-allowance"),
+  depositForm: document.getElementById("deposit-form"),
+  depositAmount: document.getElementById("deposit-amount"),
+  treasuryBalance: document.getElementById("treasury-balance"),
+  statusFilter: document.getElementById("status-filter"),
+  walletList: document.getElementById("wallet-list"),
+  walletEmpty: document.getElementById("wallet-empty"),
 }
 
-function refresh() {
-  document.getElementById("treasury-balance").textContent = String(store.allowance("treasury"));
+function showMessage(text,tone) {
+  elements.message.textContent = text;
+  elements.message.classList.toggle("message-error", tone === "error");
+  elements.message.classList.toggle("message-success", tone === "success");
+  elements.message.hidden = false;
+}
+
+function clearMessage(){
+  elements.message.textContent = "";
+  elements.message.hidden = true;
+}
+
+function createWalletRow(wallet){
+
+  const item = document.createElement("li");
+
+  const label = document.createElement("strong");
+  label.textContent = wallet.label;
+
+  const address = document.createElement("span");
+  address.textContent = wallet.id;
+  address.className = "wallet-address";
+
+  const allowance = document.createElement("span");
+  allowance.textContent = "allowance " + wallet.allowance;
+  allowance.className = "wallet-allowance";
+
+  const status = document.createElement("span");
+  status.textContent = wallet.status;
+  status.className = "wallet-status";
+
+  const amount = document.createElement("input");
+  amount.type = "number";
+  amount.min = '0';
+  amount.step = "any";
+  amount.className = "withdraw-amount";
+  amount.setAttribute("aria-label", "Withdraw amount for " + wallet.label);
+
+  const button = document.createElement("button");
+  button.textContent = "Withdraw";
+  button.type = "button";
+  button.setAttribute("data-wallet", wallet.id);
+
+  item.append(label,address,allowance,status,amount,button);
+  return item;
+}
+
+function renderWallets(){
+  const filter = elements.statusFilter.value;
+  const wallets = store.getWallets();
+  const visible = filter === "all" ? wallets : wallets.filter((wallet)=>wallet.status === filter);
+
+  elements.walletList.textContent = "";
+  visible.forEach(wallet=>{
+    elements.walletList.appendChild(createWalletRow(wallet))
+  })
+
+  if(visible.length > 0){
+    elements.walletEmpty.textContent = "";
+    elements.walletEmpty.hidden = true;
+    return
+  }
+
+  elements.walletEmpty.textContent = wallets.length === 0 ? "No wallets on the watchlist." : "No " + filter + " wallets on watchlist";
+  elements.walletEmpty.hidden = false;
+}
+
+function renderBalance(){
+  elements.treasuryBalance.textContent = String(store.getBalance());
+}
+
+function refresh(){
+  renderBalance();
   renderWallets();
 }
 
-document.getElementById("operator-id").value = window.localStorage.getItem(SESSION_KEY) || "ops";
+elements.operatorId.value = window.localStorage.getItem(OPERATOR_KEY) || "ops";
 
-document.getElementById("save-session").addEventListener("click", () => {
-  window.localStorage.setItem(SESSION_KEY, document.getElementById("operator-id").value);
-});
+elements.saveSession.addEventListener("click", ()=>{
 
-document.getElementById("add-wallet-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const caller = document.getElementById("operator-id").value || "ops";
-  const wallet = document.getElementById("wallet-address").value;
-  const label = document.getElementById("wallet-label").value;
-  const allowance = Number(document.getElementById("wallet-allowance").value);
-  store.addWallet(caller, wallet, allowance, label);
-  refresh();
-});
-
-document.getElementById("deposit-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  const amount = Number(document.getElementById("deposit-amount").value);
-  store.deposit(amount);
-  refresh();
-});
-
-document.getElementById("wallet-list").addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-wallet]");
-  if (!button) {
+  const operator = elements.operatorId.value.trim();
+  if (!operator) {
+    showMessage("Operator session must not be empty.", "error");
     return;
   }
-  try {
-    store.withdraw(button.getAttribute("data-wallet"), 10);
-  } catch (_error) {}
-  refresh();
-});
 
-document.getElementById("status-filter").addEventListener("change", renderWallets);
+  window.localStorage.setItem(OPERATOR_KEY,operator);
+  showMessage("Session saved as " + operator + ".", "success");
+})
+
+elements.addWalletForm.addEventListener("submit" , (event)=>{
+
+  event.preventDefault();
+  clearMessage();
+
+  const caller = elements.operatorId.value.trim();
+  const address = elements.walletAddress.value.trim();
+  const label = elements.walletLabel.value.trim();
+  const allowance = Number(elements.walletAllowance.value);
+
+  const result = store.addWallet(caller,address,allowance,label);
+
+  if(result.ok){
+    showMessage("Address added successfully.", "success");
+    elements.addWalletForm.reset();
+  }else{
+    showMessage(result.message, "error");
+  }
+
+  refresh();
+
+})
+
+elements.depositForm.addEventListener("submit",(event)=>{
+
+  event.preventDefault();
+  clearMessage();
+
+  const amount = Number(elements.depositAmount.value);
+  const result = store.deposit(amount);
+  if(result.ok){
+    showMessage("Deposited " + amount + " into the treasury.", "success");
+    elements.depositForm.reset();
+  }else{
+    showMessage(result.message, "error");
+  }
+  
+  refresh();
+
+})
+
+elements.walletList.addEventListener("click", (event)=>{
+
+  const button = event.target.closest("button[data-wallet]");
+  if(!button){
+    return;
+  }
+
+  clearMessage();
+
+  const walletId = button.getAttribute("data-wallet");
+  const amountInput = button.closest("li").querySelector(".withdraw-amount");
+  const amount = Number(amountInput.value);
+
+  const result = store.withdraw(walletId,amount);
+  if(result.ok){
+    showMessage(walletId + " withdrew " + amount + " from the treasury.", "success");
+  } else{
+    showMessage(result.message, "error");
+  }
+
+  refresh();
+
+})
+
+elements.statusFilter.addEventListener("change", renderWallets);
 
 refresh();

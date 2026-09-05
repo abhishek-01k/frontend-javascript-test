@@ -11,6 +11,8 @@
       <h1>Wallet Watchlist</h1>
       <p class="lede">Track wallets and the shared treasury balance.</p>
 
+      <p id="app-message" class="message" role="status" aria-live="polite" hidden></p>
+
       <section class="panel">
         <h2>Operator</h2>
         <label>
@@ -25,7 +27,7 @@
         <form id="add-wallet-form">
           <label>
             Address
-            <input id="wallet-address" name="wallet" type="text" />
+            <input id="wallet-address" name="wallet" type="text" required/>
           </label>
           <label>
             Label
@@ -33,7 +35,7 @@
           </label>
           <label>
             Allowance
-            <input id="wallet-allowance" name="allowance" type="number" value="100" />
+            <input id="wallet-allowance" name="allowance" type="number" value="100" min="0" step="any" required/>
           </label>
           <button type="submit">Add</button>
         </form>
@@ -45,7 +47,7 @@
         <form id="deposit-form">
           <label>
             Deposit amount
-            <input id="deposit-amount" name="amount" type="number" />
+            <input id="deposit-amount" name="amount" type="number" min="0" step="any" required/>
           </label>
           <button type="submit">Deposit</button>
         </form>
@@ -62,6 +64,7 @@
           </select>
         </label>
         <ul id="wallet-list"></ul>
+        <p id="wallet-empty" class="empty"></p>
       </section>
     </main>
     <script src="../lib/watchlist-store.js"></script>
